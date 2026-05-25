@@ -9,6 +9,11 @@
 <meta name="apple-mobile-web-app-title" content="GR Nutri & Performance">
 <title>GR Nutri & Performance — Plano Nutricional para Atletas</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@300;400;500;600;700;900&family=Barlow+Condensed:wght@400;600;700;900&display=swap" rel="stylesheet">
+<script>
+  // URL da API — substitua pela URL do seu serviço grnutri-api no Render
+  // Ex.: window.GR_API_URL = 'https://grnutri-api.onrender.com';
+  window.GR_API_URL = '';
+</script>
 <style>
 /* ============================================================
    VARIÁVEIS & RESET
@@ -2384,9 +2389,9 @@ header{border-bottom:1px solid rgba(71,184,255,.1)!important;box-shadow:0 2px 20
 // ============================================================
 //  AUTENTICAÇÃO
 // ============================================================
-const ADMIN_EMAIL    = 'gustavo@grnutri.com.br';
-const ADMIN_SENHA    = 'GRnutri@2025';
-const NUTRICIONISTA_WPP = '5511999257883'; // WhatsApp do Gustavo Rodrigues
+// URL base da API — ajuste após o deploy no Render
+const API_URL = (window.GR_API_URL || '').replace(/\/$/, '');
+const NUTRICIONISTA_WPP = '5511999257883';
 let   authMode       = 'login';
 
 // Inicializar: checar sessão salva
@@ -2403,6 +2408,14 @@ function initAuth(){
 
 function saveSession(data){
   sessionStorage.setItem('gr_session', JSON.stringify(data));
+}
+
+function getSession(){
+  return JSON.parse(sessionStorage.getItem('gr_session') || 'null');
+}
+
+function getToken(){
+  return getSession()?.token || null;
 }
 
 function showApp(){
@@ -2478,71 +2491,95 @@ function showForgot(){try{
   }catch(e){console.warn("showForgot",e);}
 }
 
+// ── Auxiliar: chamada à API com feedback de loading ──
+function setBtnLoading(id, loading, label){
+  const btn = document.getElementById(id);
+  if(!btn) return;
+  btn.disabled = loading;
+  btn.textContent = loading ? '⏳ Aguarde...' : label;
+}
+
 // ── ENTRAR ──
-function doLogin(){
+async function doLogin(){
   const email = (document.getElementById('loginEmail')?.value||'').trim().toLowerCase();
   const senha = document.getElementById('loginSenha')?.value||'';
   if(!email || !senha){ showError('loginError','Preencha e-mail e senha.'); return; }
 
-  // Admin (nutricionista)
-  if(email === ADMIN_EMAIL.toLowerCase() && senha === ADMIN_SENHA){
-    saveSession({email, nome:'Gustavo Rodrigues', role:'admin'});
-    hideLoginScreen();
-    return;
-  }
-  // Atleta cadastrado
-  const users = JSON.parse(localStorage.getItem('gr_users')||'[]');
-  const user  = users.find(u => u.email === email && u.senha === btoa(unescape(encodeURIComponent(senha))));
-  if(user){
-    saveSession({email:user.email, nome:user.nome, role:'atleta'});
-    if(user.perfil) localStorage.setItem('gr_perfil', JSON.stringify(user.perfil));
+  setBtnLoading('btnLoginMain', true, 'ENTRAR →');
+  try {
+    if(!API_URL){ throw new Error('API_URL não configurada.'); }
+    const resp = await fetch(API_URL + '/api/auth/login', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({email, senha}),
+    });
+    const data = await resp.json();
+    if(!resp.ok){ showError('loginError', data.error || 'Erro ao entrar.'); return; }
+    saveSession({...data.user, token: data.token});
+    if(data.user?.nome) localStorage.setItem('gr_perfil', JSON.stringify({nome: data.user.nome}));
     hideLoginScreen();
     setTimeout(()=>{ if(typeof updatePerfil==='function') updatePerfil(); },300);
-    return;
+  } catch(err) {
+    showError('loginError', err.message || 'Erro de conexão com o servidor.');
+  } finally {
+    setBtnLoading('btnLoginMain', false, 'ENTRAR →');
   }
-  showError('loginError','E-mail ou senha incorretos.');
 }
 
 // ── CADASTRAR ──
-function doRegister(){
+async function doRegister(){
   const nome  = (document.getElementById('cadNome')?.value||'').trim();
   const email = (document.getElementById('loginEmail')?.value||'').trim().toLowerCase();
   const senha = document.getElementById('loginSenha')?.value||'';
   const conf  = document.getElementById('loginConf')?.value||'';
 
-  if(!nome)                  { showError('loginError','Informe seu nome completo.'); return; }
-  if(!email.includes('@'))   { showError('loginError','E-mail inválido.'); return; }
-  if(senha.length < 6)       { showError('loginError','Senha deve ter ao menos 6 caracteres.'); return; }
-  if(senha !== conf)         { showError('loginError','As senhas não conferem.'); return; }
-  if(email === ADMIN_EMAIL.toLowerCase()){ showError('loginError','E-mail não disponível.'); return; }
+  if(!nome)               { showError('loginError','Informe seu nome completo.'); return; }
+  if(!email.includes('@')){ showError('loginError','E-mail inválido.'); return; }
+  if(senha.length < 6)    { showError('loginError','Senha deve ter ao menos 6 caracteres.'); return; }
+  if(senha !== conf)      { showError('loginError','As senhas não conferem.'); return; }
 
-  const users = JSON.parse(localStorage.getItem('gr_users')||'[]');
-  if(users.find(u=>u.email===email)){ showError('loginError','E-mail já cadastrado. Faça login.'); return; }
-
-  const senhaCod = btoa(unescape(encodeURIComponent(senha)));
-  users.push({ email, nome, senha:senhaCod, criadoEm:new Date().toLocaleDateString('pt-BR') });
-  localStorage.setItem('gr_users', JSON.stringify(users));
-
-  // Perfil inicial
-  const pfInicial = {nome, criadoEm:new Date().toISOString()};
-  localStorage.setItem('gr_perfil', JSON.stringify(pfInicial));
-
-  saveSession({email, nome, role:'atleta'});
-  hideLoginScreen();
-  setTimeout(()=>showToast('✅ Bem-vindo, '+nome.split(' ')[0]+'!'),500);
+  setBtnLoading('btnLoginMain', true, 'CRIAR CONTA →');
+  try {
+    if(!API_URL){ throw new Error('API_URL não configurada.'); }
+    const resp = await fetch(API_URL + '/api/auth/register', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({nome, email, senha}),
+    });
+    const data = await resp.json();
+    if(!resp.ok){ showError('loginError', data.error || 'Erro ao criar conta.'); return; }
+    saveSession({...data.user, token: data.token});
+    localStorage.setItem('gr_perfil', JSON.stringify({nome: data.user.nome, criadoEm: new Date().toISOString()}));
+    hideLoginScreen();
+    setTimeout(()=>showToast('✅ Bem-vindo, '+nome.split(' ')[0]+'!'),500);
+  } catch(err) {
+    showError('loginError', err.message || 'Erro de conexão com o servidor.');
+  } finally {
+    setBtnLoading('btnLoginMain', false, 'CRIAR CONTA →');
+  }
 }
 
 // ── RECUPERAR SENHA ──
-function doForgot(){
+async function doForgot(){
   const email = (document.getElementById('forgotEmail')?.value||'').trim().toLowerCase();
   if(!email.includes('@')){ showError('forgotError','Informe um e-mail válido.'); return; }
-  const users = JSON.parse(localStorage.getItem('gr_users')||'[]');
-  const existe = users.find(u=>u.email===email) || email===ADMIN_EMAIL.toLowerCase();
-  if(!existe){ showError('forgotError','E-mail não encontrado no sistema.'); return; }
-  // Como é app HTML local, redireciona para WhatsApp do admin
-  const msg = encodeURIComponent(`Olá Gustavo! Preciso redefinir minha senha. Meu e-mail é: ${email}`);
-  window.open(`https://wa.me/${NUTRICIONISTA_WPP}?text=${msg}`,'_blank');
-  showError('forgotError','Verifique o WhatsApp para redefinir sua senha.');
+  try {
+    if(!API_URL){ throw new Error('API_URL não configurada.'); }
+    const resp = await fetch(API_URL + '/api/auth/forgot', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({email}),
+    });
+    const data = await resp.json();
+    if(!resp.ok){ showError('forgotError', data.error || 'Erro.'); return; }
+    if(!data.existe){ showError('forgotError','E-mail não encontrado no sistema.'); return; }
+    const wpp  = data.wpp || NUTRICIONISTA_WPP;
+    const msg  = encodeURIComponent('Olá Gustavo! Preciso redefinir minha senha. Meu e-mail é: '+email);
+    window.open('https://wa.me/'+wpp+'?text='+msg,'_blank');
+    showError('forgotError','Verifique o WhatsApp para redefinir sua senha.');
+  } catch(err) {
+    showError('forgotError', err.message || 'Erro de conexão.');
+  }
 }
 
 // ── LOGOUT ──
