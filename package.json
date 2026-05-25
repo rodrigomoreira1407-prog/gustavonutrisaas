@@ -4,7 +4,6 @@
   "private": true,
   "scripts": {
     "postinstall": "npm install --prefix backend",
-    "build": "node backend/migrate.js",
     "start": "node backend/server.js"
   },
   "engines": {
