@@ -1,0 +1,13 @@
+{
+  "name": "gustavonutrisaas",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "postinstall": "npm install --prefix backend",
+    "build": "node backend/migrate.js",
+    "start": "node backend/server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
