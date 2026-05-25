@@ -1,5 +1,50 @@
+databases:
+  - name: grnutri-db
+    plan: free
+    databaseName: grnutri
+    user: grnutri
+
 services:
+  # ── Backend API ───────────────────────────────────────────
+  - type: web
+    name: grnutri-api
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install && npm run migrate
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: grnutri-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: ADMIN_EMAIL
+        sync: false          # definir manualmente no painel Render
+      - key: ADMIN_SENHA
+        sync: false          # definir manualmente no painel Render
+      - key: NUTRICIONISTA_WPP
+        sync: false          # definir manualmente no painel Render
+      - key: ALLOWED_ORIGINS
+        sync: false          # ex: https://gustavonutrisaas.onrender.com
+      - key: NODE_ENV
+        value: production
+
+  # ── Frontend estático ─────────────────────────────────────
   - type: web
     name: gustavonutrisaas
     runtime: static
     staticPublishPath: .
+    headers:
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
