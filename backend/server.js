@@ -2,6 +2,7 @@ require('dotenv').config();
 const express    = require('express');
 const cors       = require('cors');
 const rateLimit  = require('express-rate-limit');
+const path       = require('path');
 
 const authRouter  = require('./routes/auth');
 const dataRouter  = require('./routes/data');
@@ -48,6 +49,9 @@ const generalLimiter = rateLimit({
 
 app.use('/api/auth', authLimiter);
 app.use('/api', generalLimiter);
+
+// ── Static files ──────────────────────────────────────────────
+app.use(express.static(path.join(__dirname, '..')));
 
 // ── Rotas ─────────────────────────────────────────────────────
 app.use('/api/auth',         authRouter);
