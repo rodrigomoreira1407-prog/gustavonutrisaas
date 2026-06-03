@@ -10,7 +10,8 @@ services:
     name: grnutri-api
     runtime: node
     rootDir: backend
-    buildCommand: npm install && npm run migrate
+    buildCommand: npm install
+    preDeployCommand: npm run migrate
     startCommand: npm start
     healthCheckPath: /health
     envVars:
