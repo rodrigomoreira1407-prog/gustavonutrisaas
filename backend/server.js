@@ -4,6 +4,17 @@ const cors       = require('cors');
 const rateLimit  = require('express-rate-limit');
 const path       = require('path');
 
+// ── Validação de variáveis de ambiente obrigatórias ──────────
+const REQUIRED_ENV = ['DATABASE_URL', 'JWT_SECRET'];
+for (const v of REQUIRED_ENV) {
+  if (!process.env[v]) {
+    console.error(`❌ Variável de ambiente obrigatória não definida: ${v}`);
+    console.error('   Configure essa variável no painel do Railway/Render e reinicie o serviço.');
+    process.exit(1);
+  }
+}
+
+const pool        = require('./db');
 const authRouter  = require('./routes/auth');
 const dataRouter  = require('./routes/data');
 const agendRouter = require('./routes/agendamentos');
@@ -60,7 +71,15 @@ app.use('/api/agendamentos', agendRouter);
 app.use('/api/admin',        adminRouter);
 
 // ── Health check ──────────────────────────────────────────────
-app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+app.get('/health', generalLimiter, async (_req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.json({ status: 'ok', db: 'connected' });
+  } catch (err) {
+    console.error('Health check DB error:', err.message);
+    res.status(503).json({ status: 'error', db: 'disconnected', detail: err.message });
+  }
+});
 
 // ── Rota não encontrada ───────────────────────────────────────
 app.use((_req, res) => res.status(404).json({ error: 'Rota não encontrada.' }));

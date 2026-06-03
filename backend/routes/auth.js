@@ -46,7 +46,7 @@ router.post('/register', async (req, res) => {
     const user = result.rows[0];
     res.status(201).json({ token: makeToken(user), user: { id: user.id, email: user.email, nome: user.nome, role: user.role } });
   } catch (err) {
-    console.error('register error:', err.message);
+    console.error('register error:', err.stack || err.message);
     res.status(500).json({ error: 'Erro interno. Tente novamente.' });
   }
 });
@@ -64,8 +64,13 @@ router.post('/login', async (req, res) => {
     emailNorm === (process.env.ADMIN_EMAIL || '').toLowerCase() &&
     senha === process.env.ADMIN_SENHA
   ) {
-    const adminUser = { id: 'admin', email: emailNorm, nome: 'Gustavo Rodrigues', role: 'admin' };
-    return res.json({ token: makeToken(adminUser), user: adminUser });
+    try {
+      const adminUser = { id: 'admin', email: emailNorm, nome: 'Gustavo Rodrigues', role: 'admin' };
+      return res.json({ token: makeToken(adminUser), user: adminUser });
+    } catch (err) {
+      console.error('admin login error:', err.stack || err.message);
+      return res.status(500).json({ error: 'Erro interno. Tente novamente.' });
+    }
   }
 
   try {
@@ -81,7 +86,7 @@ router.post('/login', async (req, res) => {
       user: { id: user.id, email: user.email, nome: user.nome, role: user.role },
     });
   } catch (err) {
-    console.error('login error:', err.message);
+    console.error('login error:', err.stack || err.message);
     res.status(500).json({ error: 'Erro interno. Tente novamente.' });
   }
 });
