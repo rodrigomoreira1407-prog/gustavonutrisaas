@@ -71,7 +71,7 @@ app.use('/api/agendamentos', agendRouter);
 app.use('/api/admin',        adminRouter);
 
 // ── Health check ──────────────────────────────────────────────
-app.get('/health', async (_req, res) => {
+app.get('/health', generalLimiter, async (_req, res) => {
   try {
     await pool.query('SELECT 1');
     res.json({ status: 'ok', db: 'connected' });
